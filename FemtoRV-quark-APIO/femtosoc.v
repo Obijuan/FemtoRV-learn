@@ -11,7 +11,6 @@
 `default_nettype none // Makes it easier to detect typos !
 
 `define NRV_IO_LEDS          // Mapped IO, LEDs D1,D2,D3,D4 (D5 is used to display errors)
-`define NRV_IO_IRDA          // In IO_LEDS, support for the IRDA on the IceStick (WIP)
 `define NRV_IO_UART          // Mapped IO, virtual UART (USB)
 `define NRV_MAPPED_SPI_FLASH // SPI flash mapped in address space. Use with MINIRV32 to run code from SPI flash.
 
@@ -53,55 +52,6 @@
 `endif
 
 `define SPI_FLASH_READ
-
-
-module LEDDriver(
-`ifdef NRV_IO_IRDA
-    output wire irda_TXD,
-    input  wire irda_RXD,
-    output wire irda_SD,		
-`endif		  
-    input wire 	       clk, // system clock
-    input wire 	       rstrb, // read strobe		
-    input wire 	       wstrb, // write strobe
-    input wire 	       sel, // select (read/write ignored if low)
-    input wire [31:0]  wdata, // data to be written
-    output wire [31:0] rdata, // read data
-    output wire [3:0]  LED    // LED pins
-);
-
-// The IceStick has an infrared reveiver/transmitter pair
-// See EXAMPLES/test_ir_sensor.c and EXAMPLES/test_ir_remote.c
-`ifdef NRV_IO_IRDA
-   reg [5:0] led_state;
-   assign LED = led_state[3:0];
-   assign rdata = (sel ? {25'b0, irda_RXD, led_state} : 32'b0);
-   assign irda_SD  = led_state[5];
-   assign irda_TXD = led_state[4];
-`else   
-   reg [3:0] led_state;
-   assign LED = led_state;
-   
-   initial begin
-      led_state = 4'b0000;
-   end
-   
-   assign rdata = (sel ? {28'b0, led_state} : 32'b0);
-`endif
-   
-   always @(posedge clk) begin
-      if(sel && wstrb) begin
-`ifdef NRV_IO_IRDA
-	 led_state <= wdata[5:0];
-`else
-	 led_state <= wdata[3:0];	 
-`endif	 
-`ifdef BENCH
-         $display("****************** LEDs = %b", wdata[3:0]);
-`endif	 
-      end
-   end
-endmodule
 
 
 module Buttons(
