@@ -66,30 +66,12 @@
 /*************************************************************************************/
 
 module femtosoc(
-`ifdef NRV_IO_LEDS
-   output D1,D2,D3,D4,D5,
-`endif	      
-`ifdef NRV_IO_UART
+   output D1,D2,D3,D4,D5,	      
    input  RXD,
-   output TXD,
-`endif	      
-`ifdef NRV_SPI_FLASH
+   output TXD,	      
    inout spi_mosi, inout spi_miso, output spi_cs_n,
-   output spi_clk, // ULX3S has spi clk shared with ESP32, using USRMCLK (below)	
-`endif
-`ifdef NRV_IO_BUTTONS
-   `ifdef ICE_FEATHER
-      input [3:0] buttons, 
-   `else
-      input [5:0] buttons,
-   `endif		
-`endif	
-   input  RESET,
-`ifdef NRV_IO_IRDA
-   output irda_TXD,
-   input  irda_RXD,
-   output irda_SD,		
-`endif   		
+   output spi_clk, 
+   input  RESET, 		
    input pclk
 );
 
@@ -109,11 +91,8 @@ module femtosoc(
   // first cycles).
   // http://svn.clifford.at/handicraft/2017/ice40bramdelay/README
   // On the ICE40-UP5K, 4096 cycles do not suffice (-> 65536 cycles)
-`ifdef ICE_STICK
+
   reg [11:0] reset_cnt = 0;   
-`else   
-  reg [15:0] reset_cnt = 0;
-`endif   
   wire       reset = &reset_cnt;
 
 /* verilator lint_off WIDTH */   
