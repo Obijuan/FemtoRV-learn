@@ -95,16 +95,7 @@ module femtosoc(
   reg [11:0] reset_cnt = 0;   
   wire       reset = &reset_cnt;
 
-/* verilator lint_off WIDTH */   
-`ifdef NRV_NEGATIVE_RESET
-   always @(posedge clk,negedge RESET) begin
-      if(!RESET) begin
-	 reset_cnt <= 0;
-      end else begin
-	 reset_cnt <= reset_cnt + !reset;
-      end
-   end
-`else
+
    always @(posedge clk,posedge RESET) begin
       if(RESET) begin
 	 reset_cnt <= 0;
@@ -112,8 +103,6 @@ module femtosoc(
 	 reset_cnt <= reset_cnt + !reset;
       end
    end
-`endif
-/* verilator lint_on WIDTH */   
    
 /***************************************************************************************************
 /*
@@ -137,7 +126,6 @@ module femtosoc(
    wire        mem_wstrb = |mem_wmask; // mem write strobe, goes high to initiate memory write (deduced from wmask)
 
    // IO bus.
-`ifdef NRV_MAPPED_SPI_FLASH
    wire mem_address_is_ram       = (mem_address[23:22] == 2'b00);   
    wire mem_address_is_io        = (mem_address[23:22] == 2'b01);
    wire mem_address_is_spi_flash = (mem_address[23:22] == 2'b10);
@@ -151,18 +139,9 @@ module femtosoc(
       .rdata(mapped_spi_flash_rdata),
       .rbusy(mapped_spi_flash_rbusy),
       .CLK(spi_clk),
-      .CS_N(spi_cs_n),
-`ifdef SPI_FLASH_FAST_READ_DUAL_IO				   
-      .IO({spi_miso,spi_mosi})
-`else	
-      .MISO(spi_miso),
-      .MOSI(spi_mosi)
-`endif				   
+      .CS_N(spi_cs_n),			   
+      .IO({spi_miso,spi_mosi})			   
    );
-`else   
-   wire mem_address_is_io  =  mem_address[22];
-   wire mem_address_is_ram = !mem_address[22];
-`endif
       
    reg  [31:0] io_rdata; 
    wire [31:0] io_wdata = mem_wdata;
@@ -172,19 +151,10 @@ module femtosoc(
    wire	       io_rbusy; 
    wire        io_wbusy;
    
-   assign      mem_rbusy = io_rbusy
-`ifdef NRV_MAPPED_SPI_FLASH
-    | mapped_spi_flash_rbusy			   
-`endif 			   
-    ;
+   assign      mem_rbusy = io_rbusy | mapped_spi_flash_rbusy;
    
    assign      mem_wbusy = io_wbusy; 
-
-`ifdef NRV_IO_FGA
-   wire mem_address_is_vram = mem_address[21];
-`else
    parameter mem_address_is_vram = 1'b0;
-`endif
 
    wire [19:0] ram_word_address = mem_address[21:2];
 
@@ -207,13 +177,9 @@ module femtosoc(
    end
    /* verilator lint_on WIDTH */
    
-`ifdef NRV_MAPPED_SPI_FLASH
    assign mem_rdata = mem_address_is_io  ? io_rdata  : 
 		      mem_address_is_ram ? ram_rdata : 
 		      mapped_spi_flash_rdata;   
-`else   
-   assign mem_rdata = mem_address_is_io ? io_rdata : ram_rdata;
-`endif   
    
 /***************************************************************************************************
 /*
@@ -295,14 +261,8 @@ HardwareConfig hwconfig(
 `endif
    
 /*********************** Four LEDs ************************/
-`ifdef NRV_IO_LEDS
    wire [31:0] leds_rdata;
-   LEDDriver leds(
-`ifdef NRV_IO_IRDA
-      .irda_TXD(irda_TXD),
-      .irda_RXD(irda_RXD),
-      .irda_SD(irda_SD),		
-`endif		  
+   LEDDriver leds(	  
       .clk(clk),
       .rstrb(io_rstrb),		  
       .wstrb(io_wstrb),			
@@ -311,10 +271,8 @@ HardwareConfig hwconfig(
       .rdata(leds_rdata),
       .LED({D4,D3,D2,D1})
    );
-`endif  
 
 /********************** UART ****************************************/
-`ifdef NRV_IO_UART
 
  // Internal wires to connect IO buffers to UART
  wire RXD_internal;
@@ -342,9 +300,6 @@ HardwareConfig hwconfig(
       .TXD(TXD_internal),
       .brk(uart_brk)
    );
-`else
-   wire uart_brk = 1'b0;
-`endif 
    
 /************** io_rdata, io_rbusy and io_wbusy signals *************/
 
@@ -362,15 +317,6 @@ always @(posedge clk) begin
 `ifdef NRV_IO_UART
 	    | uart_rdata
 `endif	    
-`ifdef NRV_IO_SDCARD
-	    | sdcard_rdata
-`endif
-`ifdef NRV_IO_BUTTONS
-	    | buttons_rdata
-`endif
-`ifdef NRV_IO_FGA
-	    | FGA_rdata
-`endif
 	    ;
 end
 
@@ -379,17 +325,7 @@ end
    // write address and waits for read data).
    assign io_rbusy = 0 ; 
 
-   assign io_wbusy = 0
-`ifdef NRV_IO_SSD1351_1331
-	| SSD1351_wbusy
-`endif
-`ifdef NRV_IO_MAX7219
-	| max7219_wbusy
-`endif		   
-`ifdef NRV_IO_SPI_FLASH
-        | spi_flash_wbusy
-`endif		   
-; 
+   assign io_wbusy = 0; 
 
 /****************************************************************/
 /* And last but not least, the processor                        */
@@ -408,32 +344,10 @@ end
     .mem_rdata(mem_rdata),
     .mem_rstrb(mem_rstrb),
     .mem_rbusy(mem_rbusy),
-    .mem_wbusy(mem_wbusy),
-`ifdef NRV_INTERRUPTS
-    .interrupt_request(1'b0),	      
-`endif     
+    .mem_wbusy(mem_wbusy),    
     .reset(reset && !uart_brk)
   );
 
-`ifdef NRV_IO_LEDS  
    assign D5 = error;
- `ifdef FOMU
-    SB_RGBA_DRV #(
-        .CURRENT_MODE("0b1"),       // half current
-        .RGB0_CURRENT("0b000011"),  // 4 mA
-        .RGB1_CURRENT("0b000011"),  // 4 mA
-        .RGB2_CURRENT("0b000011")   // 4 mA
-    ) RGBA_DRIVER (
-        .CURREN(1'b1),
-        .RGBLEDEN(1'b1),
-        .RGB0PWM(D1), 
-        .RGB1PWM(D2), 
-        .RGB2PWM(D3), 
-        .RGB0(rgb0),
-        .RGB1(rgb1),
-        .RGB2(rgb2)
-    );
- `endif
-`endif
    
 endmodule
