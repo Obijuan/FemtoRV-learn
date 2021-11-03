@@ -1,0 +1,31 @@
+set_io pclk 21
+
+set_io oled_DIN  91
+set_io oled_CLK  90
+set_io oled_CS   88
+set_io oled_DC   87
+set_io oled_RST  78
+
+set_io D1 99
+set_io D2 98
+set_io D3 97
+set_io D4 96
+set_io D5 95
+
+set_io TXD 8
+set_io RXD 9
+
+set_io ledmtx_DIN  81
+set_io ledmtx_CS   80
+set_io ledmtx_CLK  79
+
+set_io spi_cs_n 71
+set_io spi_miso 68
+set_io spi_mosi 67
+set_io spi_clk  70
+
+set_io RESET    47
+
+set_io irda_TXD 105
+set_io irda_RXD 106
+set_io irda_SD  107
