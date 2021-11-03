@@ -10,60 +10,15 @@
 
 `default_nettype none // Makes it easier to detect typos !
 
-`define NRV_IO_LEDS          // Mapped IO, LEDs D1,D2,D3,D4 (D5 is used to display errors)
-`define NRV_IO_UART          // Mapped IO, virtual UART (USB)
-`define NRV_MAPPED_SPI_FLASH // SPI flash mapped in address space. Use with MINIRV32 to run code from SPI flash.
-
-`define NRV_FEMTORV32_QUARK
 `define NRV_FREQ 50                 // Validated at 50 MHz on the IceStick. Can overclock to 70 MHz.
 `define NRV_RESET_ADDR 32'h00820000 // Jump execution to SPI Flash (800000h, +128k(20000h) for FPGA bitstream)
 `define NRV_COUNTER_WIDTH 24        // Number of bits in cycles counter
-`define NRV_TWOLEVEL_SHIFTER        // Faster shifts
+`define NRV_ADDR_WIDTH 24
 
 /************************* RAM (in bytes, needs to be a multiple of 4)***********************************************/
-
 `define NRV_RAM 6144 // default for ICESTICK (cannot do more !)
-
-/************************* Advanced devices configuration ***********************************************************/
-
-`define NRV_RUN_FROM_SPI_FLASH // Do not 'readmemh()' firmware from '.hex' file
-`define NRV_IO_HARDWARE_CONFIG // Comment-out to disable hardware config registers mapped in IO-Space
-                               // (note: firmware libfemtorv32 depends on it)
-
-/********************************************************************************************************************/
-
-`define NRV_CONFIGURED
-
-`define NRV_SPI_FLASH
-`define ICE40
 `define NRV_IS_IO_ADDR(addr) |addr[23:22] 
 
-// Firmware generation flags for this processor
-`define NRV_ARCH     "rv32i"
-`define NRV_ABI      "ilp32"
-`define NRV_OPTIMIZE "-Os"
-
-`define SPI_FLASH_FAST_READ_DUAL_IO
-`define SPI_FLASH_CONFIGURED
-
-`ifndef SPI_FLASH_DUMMY_CLOCKS
- `define SPI_FLASH_DUMMY_CLOCKS 8
-`endif
-
-`define SPI_FLASH_READ
-
-
-/*************************************************************************************/
-
-`ifndef NRV_RESET_ADDR
- `define NRV_RESET_ADDR 0
-`endif
-
-`ifndef NRV_ADDR_WIDTH
- `define NRV_ADDR_WIDTH 24
-`endif
-
-/*************************************************************************************/
 
 module femtosoc(
    output D1,D2,D3,D4,D5,	      
@@ -214,51 +169,6 @@ localparam IO_HW_CONFIG_CPUINFO_bit = 19;  // R  CPU information CPL(6) FREQ(10)
 // These devices do not have hardware registers. Just a bit set in IO_HW_CONFIG_DEVICES
 localparam IO_MAPPED_SPI_FLASH_bit  = 20;  // no register (just there to indicate presence)
 
-
-/*
- * Devices are components plugged to the IO memory bus.
- * A few words follow in case you want to write your own devices:
- *
- * Each device has one or several register(s). Each register 
- * can be optionally read or/and written.
- * - Each register is selected by a .sel_xxx signal (where xxx
- *   is the name of the register). With the 1-hot encoding that 
- *   I'm using, .sel_xxx is systematically one of the bits of the 
- *   IO word address (it is also possible to write a real
- *   address decoder, at the expense of eating-up a larger 
- *   number of LUTs).
- * - If the device requires wait cycles for writing and/or reading, 
- *   it can have a .wbusy and/or .rbusy signal(s). All the .wbusy
- *   and .rbusy signals of all the devices are ORed at the end of
- *   this file to form the .io_rbusy and .io_wbusy signals.
- * - If the device has read access, then it has a 32-bits .xxx_rdata
- *   signal, that returns 32'b0 if the device is not selected, or the
- *   read data otherwise. All the .xxx_rdata signals of all the devices
- *   are ORed at the end of this file to form the 32-bits io_rdata signal.
- * - Finally, of course, each device is plugged to some pins of the FPGA,
- *   the corresponding signals are in capital letters. 
- */   
-
-
-/*********************** Hardware configuration ************/
-/*
- * Three memory-mapped constant registers that make it easy for
- * client code to query installed RAM and configured devices
- * (this one does not use any pin, of course).
- * Uses some LUTs, a bit stupid, but more comfortable, so that
- * I do not need to change the software on the SDCard each time 
- * I test a different hardware configuration.
- */
-`ifdef NRV_IO_HARDWARE_CONFIG   
-wire [31:0] hwconfig_rdata;
-HardwareConfig hwconfig(
-   .clk(clk),			
-   .sel_memory(io_word_address[IO_HW_CONFIG_RAM_bit]),
-   .sel_devices(io_word_address[IO_HW_CONFIG_DEVICES_bit]),
-   .sel_cpuinfo(io_word_address[IO_HW_CONFIG_CPUINFO_bit]),			
-   .rdata(hwconfig_rdata)			 
-);
-`endif
    
 /*********************** Four LEDs ************************/
    wire [31:0] leds_rdata;
@@ -281,10 +191,9 @@ HardwareConfig hwconfig(
  
  // For other boards, we directly connect RXD and TXD to the UART (but we may need
  // to latch).
- `ifndef UART_IO_BUFFER
+ 
    assign RXD_internal = RXD;
    assign TXD = TXD_internal;
- `endif
 
    wire        uart_brk;
    wire [31:0] uart_rdata;
@@ -307,17 +216,8 @@ HardwareConfig hwconfig(
  * io_rdata is latched. Not mandatory, but probably allow higher freq, to be tested.
  */
 always @(posedge clk) begin
-   io_rdata <= 0
-`ifdef NRV_IO_HARDWARE_CONFIG	       
-            | hwconfig_rdata
-`endif	       
-`ifdef NRV_IO_LEDS      
-	    | leds_rdata
-`endif
-`ifdef NRV_IO_UART
-	    | uart_rdata
-`endif	    
-	    ;
+   io_rdata <= 0       
+	    | leds_rdata  | uart_rdata    ;
 end
 
    // For now, we got no device that has
