@@ -52,9 +52,9 @@ module femtosoc(
 
    always @(posedge clk,posedge RESET) begin
       if(RESET) begin
-	 reset_cnt <= 0;
+	     reset_cnt <= 0;
       end else begin
-	 reset_cnt <= reset_cnt + !reset;
+	     reset_cnt <= reset_cnt + !reset;
       end
    end
    
